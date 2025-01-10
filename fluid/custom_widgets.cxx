@@ -55,7 +55,7 @@ int Widget_Bin_Button::handle(int inEvent)
         // fake a drag outside of the widget
         Fl::e_x = x()-1;
         Fl_Button::handle(inEvent);
-        // fake a buttton release
+        // fake a button release
         Fl_Button::handle(FL_RELEASE);
         // make it into a dnd event
         const char *type_name = (const char*)user_data();
@@ -110,7 +110,7 @@ int Widget_Bin_Window_Button::handle(int inEvent)
         // create a new window here
         Fl_Type *prototype = typename_to_prototype((char*)user_data());
         if (prototype) {
-          Fl_Type *new_type = add_new_widget_from_user(prototype, kAddAfterCurrent);
+          Fl_Type *new_type = add_new_widget_from_user(prototype, Strategy::AFTER_CURRENT);
           if (new_type && new_type->is_a(ID_Window)) {
             Fl_Window_Type *new_window = (Fl_Window_Type*)new_type;
             Fl_Window *w = (Fl_Window *)new_window->o;

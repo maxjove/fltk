@@ -1,7 +1,7 @@
 //
 // Widget Browser code for the Fast Light Tool Kit (FLTK).
 //
-// Copyright 1998-2023 by Bill Spitzak and others.
+// Copyright 1998-2024 by Bill Spitzak and others.
 //
 // This library is free software. Distribution and use rights are outlined in
 // the file "COPYING" which should have been included with this file.  If this
@@ -114,14 +114,14 @@ void deselect() {
  Make sure that the given item is visible in the browser by opening
  all parent groups and moving the item into the visible space.
 
- \param[in] t show this ite
+ \param[in] t show this item
  */
 void reveal_in_browser(Fl_Type *t) {
   Fl_Type *p = t->parent;
   if (p) {
     for (;;) {
-      if (!p->open_)
-        p->open_ = 1;
+      if (p->folded_)
+        p->folded_ = 0;
       if (!p->parent) break;
       p = p->parent;
     }
@@ -143,8 +143,8 @@ void reveal_in_browser(Fl_Type *t) {
  \param[out] p return the resulting string in this buffer, terminated with
     a NUL byte
  \param[in] str copy this string; utf8 aware
- \param[in] maxl maximum number of letter to copy until we print
-    the elipsis (...)
+ \param[in] maxl maximum number of letters to copy until we print
+    the ellipsis (...)
  \param[in] quote if set, the resulting string is embedded in double quotes
  \param[in] trunc_lf if set, truncates at first newline
  \returns pointer to end of string (before terminating null byte).
@@ -159,16 +159,23 @@ static char *copy_trunc(char *p, const char *str, int maxl, int quote, int trunc
 {
   int size = 0;                         // truncated string size in characters
   int bs;                               // size of UTF-8 character in bytes
+  if (!p) return NULL;                  // bad buffer
+  if (!str) {                           // no input string
+    if (quote) { *p++='"'; *p++='"'; }
+    *p = 0;
+    return p;
+  }
   const char *end = str + strlen(str);  // end of input string
   if (quote) *p++ = '"';                // opening quote
   while (size < maxl) {                 // maximum <maxl> characters
     if (*str == '\n') {
       if (trunc_lf) {                   // handle trunc at \n
-        *p++ = 0;
+        if (quote) *p++ = '"';          // closing quote
+        *p = 0;
         return p;
       }
       *p++ = '\\'; *p++ = 'n';
-      str++; size++;
+      str++; size+=2;
       continue;
     }
     if (!(*str & (-32))) break;         // end of string (0 or control char)
@@ -197,7 +204,7 @@ static char *copy_trunc(char *p, const char *str, int maxl, int quote, int trunc
 
  \param[in] X, Y, W, H position and size of widget
  \param[in] l optional label
- \todo It would be nice to be able to grab one or more nodes and mmove them
+ \todo It would be nice to be able to grab one or more nodes and move them
     within the hierarchy.
  */
 Widget_Browser::Widget_Browser(int X,int Y,int W,int H,const char*l) :
@@ -305,7 +312,7 @@ void Widget_Browser::item_draw(void *v, int X, int Y, int, int) const {
   // cast to a more general type
   Fl_Type *l = (Fl_Type *)v;
 
-  char buf[340]; // edit buffer: large enough to hold 80 UTF-8 chars + nul
+  char buf[500]; // edit buffer: large enough to hold 80 UTF-8 chars + nul
 
   // calculate the horizontal start position of this item
   // 3 is the edge of the browser
@@ -337,10 +344,10 @@ void Widget_Browser::item_draw(void *v, int X, int Y, int, int) const {
   else fl_color(FL_FOREGROUND_COLOR);
 
   // Width=10: Draw the triangle that indicates possible children
-  if (l->is_parent()) {
+  if (l->can_have_children()) {
     X = X - 18 - 13;
     if (!l->next || l->next->level <= l->level) {
-      if (l->open_!=(l==pushedtitle)) {
+      if (l->folded_==(l==pushedtitle)) {
         // an outlined triangle to the right indicates closed item, no children
         fl_loop(X,Y+7,X+5,Y+12,X+10,Y+7);
       } else {
@@ -348,7 +355,7 @@ void Widget_Browser::item_draw(void *v, int X, int Y, int, int) const {
         fl_loop(X+2,Y+2,X+7,Y+7,X+2,Y+12);
       }
     } else {
-      if (l->open_!=(l==pushedtitle)) {
+      if (l->folded_==(l==pushedtitle)) {
         // a filled triangle to the right indicates closed item, with children
         fl_polygon(X,Y+7,X+5,Y+12,X+10,Y+7);
       } else {
@@ -446,7 +453,7 @@ void Widget_Browser::item_draw(void *v, int X, int Y, int, int) const {
  */
 int Widget_Browser::item_width(void *v) const {
 
-  char buf[340]; // edit buffer: large enough to hold 80 UTF-8 chars + nul
+  char buf[500]; // edit buffer: large enough to hold 80 UTF-8 chars + nul
 
   Fl_Type *l = (Fl_Type *)v;
 
@@ -507,7 +514,7 @@ int Widget_Browser::handle(int e) {
     l = (Fl_Type*)find_item(Fl::event_y());
     if (l) {
       X += 3 + 12*l->level - hposition();
-      if (l->is_parent() && Fl::event_x()>X && Fl::event_x()<X+13) {
+      if (l->can_have_children() && Fl::event_x()>X && Fl::event_x()<X+13) {
         title = pushedtitle = l;
         redraw_line(l);
         return 1;
@@ -519,7 +526,7 @@ int Widget_Browser::handle(int e) {
     l = (Fl_Type*)find_item(Fl::event_y());
     if (l) {
       X += 3 + 12*l->level - hposition();
-      if (l->is_parent() && Fl::event_x()>X && Fl::event_x()<X+13) ;
+      if (l->can_have_children() && Fl::event_x()>X && Fl::event_x()<X+13) ;
       else l = 0;
     }
     if (l != pushedtitle) {
@@ -538,15 +545,15 @@ int Widget_Browser::handle(int e) {
     l = pushedtitle;
     title = pushedtitle = 0;
     if (l) {
-      if (l->open_) {
-        l->open_ = 0;
+      if (!l->folded_) {
+        l->folded_ = 1;
         for (Fl_Type*k = l->next; k&&k->level>l->level; k = k->next)
           k->visible = 0;
       } else {
-        l->open_ = 1;
+        l->folded_ = 0;
         for (Fl_Type*k=l->next; k&&k->level>l->level;) {
           k->visible = 1;
-          if (k->is_parent() && !k->open_) {
+          if (k->can_have_children() && k->folded_) {
             Fl_Type *j;
             for (j = k->next; j && j->level>k->level; j = j->next) {/*empty*/}
             k = j;
@@ -562,7 +569,7 @@ int Widget_Browser::handle(int e) {
 }
 
 /**
- Save the current scrollbar postion during rebuild.
+ Save the current scrollbar position during rebuild.
  */
 void Widget_Browser::save_scroll_position() {
   saved_h_scroll_ = hposition();
@@ -570,7 +577,7 @@ void Widget_Browser::save_scroll_position() {
 }
 
 /**
- Restore the previous scrollbar postion after rebuild.
+ Restore the previous scrollbar position after rebuild.
  */
 void Widget_Browser::restore_scroll_position() {
   hposition(saved_h_scroll_);
