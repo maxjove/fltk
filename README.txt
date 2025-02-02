@@ -1,15 +1,15 @@
-README - Fast Light Tool Kit (FLTK) Version 1.4.0
+README - Fast Light Tool Kit (FLTK) Version 1.4.1
 -------------------------------------------------
 
 WHAT IS FLTK?
 
     The Fast Light Tool Kit is a cross-platform C++ GUI toolkit for
-    UNIX(r)/Linux(r) (X11 or Wayland), Microsoft(r) Windows(r), and
-    macOS(r). FLTK provides modern GUI functionality without bloat
-    and supports 3D graphics via OpenGL(r) and its built-in GLUT
-    emulation. It was originally developed by Mr. Bill Spitzak and is
-    currently maintained by a small group of developers across
-    the world with a central repository on GitHub.
+    UNIX®/Linux® (X11 or Wayland), Microsoft® Windows®, and macOS®.
+    FLTK provides modern GUI functionality without bloat and
+    supports 3D graphics via OpenGL® and its built-in GLUT
+    emulation. It was originally developed by Mr. Bill Spitzak
+    and is currently maintained by a small group of developers
+    across the world with a central repository on GitHub.
 
         https://www.fltk.org/
         https://github.com/fltk/fltk/
@@ -76,7 +76,6 @@ BUILDING AND INSTALLING FLTK UNDER UNIX AND macOS
         --disable-gl            - Disable OpenGL support
         --enable-shared         - Enable generation of shared libraries
         --enable-threads        - Enable multithreading support
-        --enable-xdbe           - Enable the X double-buffer extension
         --enable-xft            - Enable the Xft library (anti-aliased fonts)
         --enable-pango          - Draw text with the pango library
         --disable-wayland       - Force building for X11 only (no Wayland support)
@@ -109,7 +108,7 @@ BUILDING AND INSTALLING FLTK UNDER UNIX AND macOS
 
 GIT USERS
 
-    If you've just checked out a fresh copy of FLTK from GIT,
+    If you've just checked out a fresh copy of FLTK from  Git (GitHub),
     you'll need to generate an initial version of 'configure'
     by running 'make makeinclude' or 'make clean' (we don't
     include a copy of configure in git).
@@ -202,7 +201,7 @@ TRADEMARKS
 
 COPYRIGHT
 
-    FLTK is copyright 1998-2023 by Bill Spitzak and others,
+    FLTK is copyright 1998-2024 by Bill Spitzak and others,
     see the CREDITS.txt file for more info.
 
     This library is free software. Distribution and use rights are

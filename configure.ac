@@ -3,7 +3,7 @@ dnl the "configure" script is made from this by running GNU "autoconf"
 dnl
 dnl Configuration script for the Fast Light Tool Kit (FLTK).
 dnl
-dnl Copyright 1998-2023 by Bill Spitzak and others.
+dnl Copyright 1998-2024 by Bill Spitzak and others.
 dnl
 dnl This library is free software. Distribution and use rights are outlined in
 dnl the file "COPYING" which should have been included with this file.  If this
@@ -21,7 +21,7 @@ AC_PREREQ([2.50])
 
 
 dnl Package name and version
-AC_INIT([fltk], [1.4.0], [https://github.com/fltk/fltk/issues], [fltk], [https://www.fltk.org/])
+AC_INIT([fltk], [1.4.1], [https://github.com/fltk/fltk/issues], [fltk], [https://www.fltk.org/])
 
 FLTK_VERSION="AC_PACKAGE_VERSION"
 FLTK_VERSION_MAJOR=$(echo AC_PACKAGE_VERSION | awk -F. '{print $1}')
@@ -101,6 +101,14 @@ AS_IF([test x$enable_debug = xyes], [
 ], [
     DEBUGFLAG=""
 ])
+
+AC_ARG_ENABLE([test], AS_HELP_STRING([--disable-test], [build test programs (default=yes)]))
+AS_IF([test x$enable_test = xno], [
+    TESTDIR=""
+], [
+    TESTDIR="test"
+])
+AC_SUBST(TESTDIR)
 
 AC_ARG_ENABLE([forms], AS_HELP_STRING([--disable-forms], [build Forms compatibility library (default=yes)]))
 
@@ -620,9 +628,15 @@ AC_CHECK_FUNCS([strcasecmp strlcat strlcpy])
 AC_CHECK_HEADERS([locale.h])
 AC_CHECK_FUNCS([localeconv])
 
+dnl HP-UX 11.11 does not provide setenv()
+AC_CHECK_FUNCS([setenv])
+
 
 dnl FLTK library uses math library functions...
 AC_SEARCH_LIBS([pow], [m])
+
+AC_CHECK_HEADERS([math.h])
+AC_CHECK_FUNCS([trunc])
 
 
 dnl Check for largefile support...
@@ -752,7 +766,22 @@ AS_IF([test x$enable_localzlib != xyes], [
 # but only, if the builtin lib is not requested
 syspnglib_ok=no
 syspnginc_ok=no
-AS_IF([test x$enable_localpng != xyes], [
+AS_IF([test x$enable_localpng != xyes -a x$PKGCONFIG != x], [
+    AC_MSG_CHECKING([for libpng-1.6.x])
+    AS_IF([$PKGCONFIG --exists libpng16], [
+        AC_MSG_RESULT([yes])
+        AC_DEFINE([HAVE_PNG_H], 1, [Have PNG library?])
+        syspnginc_ok=yes
+        syspnglib_ok=yes
+        PNGINC="$($PKGCONFIG --cflags libpng16)"
+        IMAGELIBS="$($PKGCONFIG --libs libpng16) $IMAGELIBS"
+        STATICIMAGELIBS="$($PKGCONFIG --libs libpng16) $STATICIMAGELIBS"
+    ], [
+        AC_MSG_RESULT([no])
+    ])
+])
+
+AS_IF([test x$enable_localpng != xyes -a $syspnglib_ok = no], [
     AC_CHECK_LIB([png], [png_read_info], [
         AC_CHECK_HEADER([png.h], [
             AC_DEFINE([HAVE_PNG_H])
@@ -955,7 +984,7 @@ AS_CASE([$host_os_gui], [cygwin* | mingw*], [
     # CXXFLAGS="-mwindows -D_WIN32 -DUSE_OPENGL32 $CXXFLAGS"
     LDFLAGS="-mwindows $LDFLAGS"
     DSOFLAGS="-mwindows $DSOFLAGS"
-    LIBS="$LIBS -lole32 -luuid -lcomctl32 -lws2_32"
+    LIBS="$LIBS -lole32 -luuid -lcomctl32 -lws2_32 -lwinspool"
 
     BUILD="WIN"
     AS_IF([test "x$with_optim" = x], [
@@ -994,6 +1023,29 @@ AS_CASE([$host_os_gui], [cygwin* | mingw*], [
 
     # MacOS X uses Cocoa for graphics.
     LIBS="$LIBS -framework Cocoa"
+    # Add weak-linked additional frameworks for increasingly high macOS versions
+    AC_LANG_PUSH([C])
+    AC_COMPILE_IFELSE(
+        [AC_LANG_PROGRAM(
+            [[#include <AvailabilityMacros.h>
+              #if __MAC_OS_X_VERSION_MAX_ALLOWED < 110000
+              #error __MAC_OS_X_VERSION_MAX_ALLOWED < 110000
+              #endif
+            ]], [[
+            ]])],
+        [LIBS="$LIBS -weak_framework UniformTypeIdentifiers"],
+        [])
+    AC_COMPILE_IFELSE(
+        [AC_LANG_PROGRAM(
+            [[#include <AvailabilityMacros.h>
+              #if __MAC_OS_X_VERSION_MAX_ALLOWED < 150000
+              #error __MAC_OS_X_VERSION_MAX_ALLOWED < 150000
+              #endif
+            ]], [[
+            ]])],
+        [LIBS="$LIBS -weak_framework ScreenCaptureKit"],
+        [])
+    AC_LANG_POP([])
 
     AS_IF([test x$have_pthread = xyes], [
         AC_DEFINE([HAVE_PTHREAD])
@@ -1078,10 +1130,14 @@ AS_CASE([$host_os_gui], [cygwin* | mingw*], [
       [
         plugin_dir="$($PKGCONFIG --variable=libdir libdecor-0)/libdecor/plugins-1"
         CFLAGS="$CFLAGS -DUSE_SYSTEM_LIBDECOR"
+        CXXFLAGS="$CXXFLAGS -DUSE_SYSTEM_LIBDECOR"
         CFLAGS="$CFLAGS -DLIBDECOR_PLUGIN_DIR=\\\"$plugin_dir\\\" "
         LIBS="$LIBS $($PKGCONFIG --libs libdecor-0)"
       ],
-      [CFLAGS="$CFLAGS -DUSE_SYSTEM_LIBDECOR=0 -DLIBDECOR_PLUGIN_DIR=\\\"\\\" "]
+      [
+        CFLAGS="$CFLAGS -DUSE_SYSTEM_LIBDECOR=0 -DLIBDECOR_PLUGIN_DIR=\\\"\\\" "
+        CXXFLAGS="$CXXFLAGS -DUSE_SYSTEM_LIBDECOR=0"
+      ]
       )
       LIBS="$LIBS $($PKGCONFIG --libs wayland-cursor) $($PKGCONFIG --libs wayland-client) $($PKGCONFIG --libs xkbcommon) $($PKGCONFIG --libs pangocairo) "
       AS_IF([test x$enable_x11 != xno], [LIBS="$LIBS $($PKGCONFIG --libs x11)"] )
@@ -1093,11 +1149,6 @@ AS_CASE([$host_os_gui], [cygwin* | mingw*], [
        [LIBDECORDBUS="-DHAS_DBUS $($PKGCONFIG --cflags dbus-1)" LIBS="$LIBS $($PKGCONFIG --libs dbus-1)"]
       )
       LDFLAGS="$LDFLAGS -rdynamic"
-      AC_SUBST([UNAME])
-      UNAME="$(uname -s)"
-      AS_CASE([$UNAME],
-         [Linux], [LDFLAGS="$LDFLAGS -no-pie"]
-      )
 
       AC_SEARCH_LIBS([dlopen], [dl])
 
@@ -1810,6 +1861,12 @@ AS_IF([test x$enable_fluid != xno], [
     echo "    Build fluid: YES"
     ],[
     echo "    Build fluid: NO"
+    ])
+
+AS_IF([test x$enable_test != xno], [
+    echo "    Build tests: YES"
+    ],[
+    echo "    Build tests: NO"
     ])
 
 AS_IF([test "$fltk_cross_compiling" = "yes"], [
